@@ -1,24 +1,34 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors")
-const Products  = require("./Carddata.js")
+const Products  = require("./Carddata.js");
+const nodemailer = require("nodemailer");
+
 
 const PORT = 5000;
 const app = express();
 app.use(cors())
 app.use(express.json());
 
+// Mail config
+const transporter = nodemailer.createTransport({
+  service: "gmail", // or "hotmail", "yahoo", etc.
+  auth: {
+    user: "nmohamedfazil790@gmail.com",
+    pass: "gccc qdge cgzv njuj"
+  }
+});
+
 // Connect to MongoDB
 // mongod --dbpath C:\data\db <---> command to start mongodb manually
 
-mongoose.connect('mongodb://localhost:27017/PCBUILD')
+mongoose.connect('mongodb://localhost:27017/Pharmacy')
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error('MongoDB connection error:', err));
 
 // Define the schema for users
 
 const Users = new mongoose.Schema({
-  name: String,
   email: String,
   password: String
 });
@@ -28,13 +38,13 @@ const User_Collections = mongoose.model("Users", Users);
 
 // Register Route (fixed insertMany)
 app.post("/user/Register", async (req, res) => {
-  const {name, email, password } = req.body;  // Expect email and password in the request body
+  const { email, password } = req.body;  // Expect email and password in the request body
 
   if (!email || !password) {
     return res.status(400).send('Email and password are required');
   }
 
-  const newUser = new User_Collections({ name, email, password });
+  const newUser = new User_Collections({ email, password });
 
 
   try {
@@ -109,14 +119,15 @@ app.get("/PostProducts", async (req, res) => {
 app.get("/api/products", async (req, res) => {
   try {
     // Use Mongoose models to query the data
-    const Product_Collection = await Products_.find({});
+    const Product_Collections = await Products_.find({});
 
-    res.json({ Product_Collection });
+    res.json({ Product_Collection: Product_Collections });
   } catch (error) {
     console.error("Error fetching data:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 const OrderHistorySchema = new mongoose.Schema({
   user: String,
   OrderItems: [
@@ -161,6 +172,54 @@ app.get("/OrderHistory", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+
+
+// Mail send Route
+app.post("/contact", async (req, res) => {
+  try {
+    const { name, email, subject, message } = req.body;
+
+    // 1) Email to the user (confirmation)
+    const mailToUser = {
+      from: "nmohamedfazil790@gmail.com",
+      to: email,
+      subject: `Thanks for contacting us: ${subject}`,
+      text: `Hello ${name},\n\n` +
+            `Thank you for reaching out! We received your message:\n\n` +
+            `"${message}"\n\n` +
+            `We will get back to you soon.\n\n` +
+            `Best regards,\n` +
+            `Your Company Name`
+    };
+
+    // 2) Email to yourself (notification)
+    const mailToMe = {
+      from: "nmohamedfazil790@gmail.com",
+      to: "nmohammedfazil790@gmail.com", // or another address you check
+      subject: `New Contact Form Submission: ${subject}`,
+      text: `New contact form submission:\n` +
+            `Name: ${name}\n` +
+            `Email: ${email}\n` +
+            `Message:\n${message}`
+    };
+
+    // Send both emails
+    await transporter.sendMail(mailToUser);
+    await transporter.sendMail(mailToMe);
+
+    res.status(200).send("Your message has been sent successfully");
+  } catch (error) {
+    console.error("Error sending emails:", error);
+    res.status(500).send("Error sending email");
+  }
+});
+
+
+
+
+
+
 
 // Start the server
 app.listen(PORT, () => {
